@@ -26,6 +26,7 @@ class HondaLinkController:
     def __init__(self, driver: AndroidDriver):
         self.driver = driver
         self.package = settings.hondalink_package
+        self.last_known_status: VehicleStatus | None = None
 
     def connect(self):
         """Connects to the device."""
@@ -201,67 +202,107 @@ class HondaLinkController:
         return False
 
     def get_status(self) -> VehicleStatus:
-        self.ensure_app_open()
-        self._navigate_to_home()
+        try:
+            self.ensure_app_open()
+            self._navigate_to_home()
 
-        refresh_btn = self.driver.find_by_text("Refresh")
-        if refresh_btn.exists():
-            refresh_btn.click()
-            time.sleep(2)
+            refresh_btn = self.driver.find_by_text("Refresh")
+            if refresh_btn.exists():
+                refresh_btn.click()
+                time.sleep(2)
 
-        odometer = "Unknown"
-        fuel = "Unknown"
-        range_val = "Unknown"
-        oil = "Unknown"
-        locked = False
-        last_updated = "Unknown"
+            odometer = "Unknown"
+            fuel = "Unknown"
+            range_val = "Unknown"
+            oil = "Unknown"
+            locked = False
+            last_updated = "Unknown"
 
-        odometer_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/tv_odometer_value"
-        )
-        if odometer_elem.exists():
-            odometer = odometer_elem.text
+            odometer_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/tv_odometer_value"
+            )
+            if odometer_elem.exists():
+                odometer = odometer_elem.text
 
-        fuel_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/progressbar_fuel_level"
-        )
-        if fuel_elem.exists():
-            fuel_text = fuel_elem.text
-            if fuel_text:
-                fuel = f"{fuel_text}%"
+            fuel_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/progressbar_fuel_level"
+            )
+            if fuel_elem.exists():
+                fuel_text = fuel_elem.text
+                if fuel_text:
+                    fuel = f"{fuel_text}%"
 
-        range_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/tv_total_range_value"
-        )
-        if range_elem.exists():
-            range_val = range_elem.text
+            range_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/tv_total_range_value"
+            )
+            if range_elem.exists():
+                range_val = range_elem.text
 
-        oil_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/tv_oil_value"
-        )
-        if oil_elem.exists():
-            oil = oil_elem.text
+            oil_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/tv_oil_value"
+            )
+            if oil_elem.exists():
+                oil = oil_elem.text
 
-        lock_status_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/textView_lockStatus"
-        )
-        if lock_status_elem.exists():
-            lock_text = lock_status_elem.text
-            locked = lock_text == "Locked"
+            lock_status_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/textView_lockStatus"
+            )
+            if lock_status_elem.exists():
+                lock_text = lock_status_elem.text
+                locked = lock_text == "Locked"
 
-        last_updated_elem = self.driver.find_by_resource_id(
-            "com.honda.hondalink.connect:id/txt_last_updated_time"
-        )
-        if last_updated_elem.exists():
-            last_updated = last_updated_elem.text
+            last_updated_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/txt_last_updated_time"
+            )
+            if last_updated_elem.exists():
+                last_updated = last_updated_elem.text
 
-        return VehicleStatus(
-            odometer=odometer,
-            fuel_level=fuel,
-            range_remaining=range_val,
-            oil_life=oil,
-            is_locked=locked,
-            last_updated=last_updated,
+            current_status = VehicleStatus(
+                odometer=odometer,
+                fuel_level=fuel,
+                range_remaining=range_val,
+                oil_life=oil,
+                is_locked=locked,
+                last_updated=last_updated,
+            )
+
+            # Check if status is valid (not all unknown)
+            if self._is_valid_status(current_status):
+                logger.info("Successfully retrieved live status, caching it")
+                self.last_known_status = current_status
+                return current_status
+            else:
+                logger.warning(
+                    "Live status returned all unknown values, using cached status"
+                )
+                if self.last_known_status:
+                    return self.last_known_status
+                else:
+                    logger.warning(
+                        "No cached status available, returning unknown status"
+                    )
+                    return current_status
+
+        except Exception as e:
+            logger.error(f"Failed to get live status: {e}")
+            if self.last_known_status:
+                logger.info("Returning last known cached status due to error")
+                return self.last_known_status
+            else:
+                logger.error("No cached status available, re-raising exception")
+                raise
+
+    def _is_valid_status(self, status: VehicleStatus) -> bool:
+        """
+        Check if the status contains meaningful data (not all unknown).
+        Returns True if at least one field has a non-unknown value.
+        """
+        return (
+            status.odometer != "Unknown"
+            or status.fuel_level != "Unknown"
+            or status.range_remaining != "Unknown"
+            or status.oil_life != "Unknown"
+            or status.last_updated != "Unknown"
         )
 
     @retry(

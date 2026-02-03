@@ -232,3 +232,154 @@ def test_execute_remote_command_expands_collapsed_panel(controller, mock_driver)
     controller.execute_remote_command(CommandType.START)
 
     assert start_btn.clicked
+
+
+def test_get_status_caches_successful_result(controller, mock_driver):
+    mock_driver.connect()
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/textView_lockStatus",
+        exists=True,
+        text="Locked",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=True,
+        text="100,000 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=True,
+        text="75.0",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=True,
+        text="400 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=True, text="50 %"
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=True,
+        text="Last updated at 01:00 p.m.",
+    )
+
+    assert controller.last_known_status is None
+
+    status = controller.get_status()
+
+    assert controller.last_known_status is not None
+    assert controller.last_known_status.odometer == "100,000 km"
+    assert controller.last_known_status.fuel_level == "75.0%"
+
+
+def test_get_status_returns_cached_when_live_fails(controller, mock_driver):
+    mock_driver.connect()
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/textView_lockStatus",
+        exists=True,
+        text="Locked",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=True,
+        text="100,000 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=True,
+        text="75.0",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=True,
+        text="400 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=True, text="50 %"
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=True,
+        text="Last updated at 01:00 p.m.",
+    )
+
+    first_status = controller.get_status()
+    assert first_status.odometer == "100,000 km"
+
+    mock_driver.app_current = MagicMock(side_effect=Exception("Connection lost"))
+
+    second_status = controller.get_status()
+
+    assert second_status.odometer == "100,000 km"
+    assert second_status.fuel_level == "75.0%"
+
+
+def test_get_status_returns_cached_when_all_unknown(controller, mock_driver):
+    mock_driver.connect()
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/textView_lockStatus",
+        exists=True,
+        text="Locked",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=True,
+        text="100,000 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=True,
+        text="75.0",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=True,
+        text="400 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=True, text="50 %"
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=True,
+        text="Last updated at 01:00 p.m.",
+    )
+
+    first_status = controller.get_status()
+    assert first_status.odometer == "100,000 km"
+
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=False,
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=False,
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=False,
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=False
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=False,
+    )
+
+    second_status = controller.get_status()
+
+    assert second_status.odometer == "100,000 km"
+    assert second_status.fuel_level == "75.0%"
+
+
+def test_get_status_raises_when_no_cache_and_exception(controller, mock_driver):
+    mock_driver.connect()
+
+    mock_driver.app_current = MagicMock(side_effect=Exception("Connection lost"))
+
+    with pytest.raises(Exception, match="Connection lost"):
+        controller.get_status()
