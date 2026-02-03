@@ -1,5 +1,6 @@
-from typing import Optional, Dict, List
+
 from .driver import AndroidDriver, UIElement
+
 
 class MockElement:
     def __init__(self, text: str = "", exists: bool = True):
@@ -29,12 +30,12 @@ class MockDriver(AndroidDriver):
     def __init__(self):
         self.connected = False
         self.current_package = None
-        self.pressed_keys: List[str] = []
+        self.pressed_keys: list[str] = []
         # specific mocks
-        self.elements: Dict[str, MockElement] = {}
+        self.elements: dict[str, MockElement] = {}
         self.default_element = MockElement(exists=False)
 
-    def connect(self, address: Optional[str] = None) -> None:
+    def connect(self, address: str | None = None) -> None:
         self.connected = True
 
     def app_start(self, package_name: str, stop: bool = False) -> None:

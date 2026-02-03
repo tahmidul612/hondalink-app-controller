@@ -1,8 +1,10 @@
+
 import pytest
-from unittest.mock import MagicMock
-from hondalink.controller import HondaLinkController, AppNotReadyException
-from hondalink.driver_mock import MockDriver
+
 from hondalink.config import settings
+from hondalink.controller import AppNotReadyException, HondaLinkController
+from hondalink.driver_mock import MockDriver
+
 
 @pytest.fixture
 def mock_driver():

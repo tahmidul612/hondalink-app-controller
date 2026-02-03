@@ -1,13 +1,14 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
-import asyncio
-from contextlib import asynccontextmanager
-import logging
 
+from .config import settings
 from .controller import HondaLinkController, HondaLinkException
 from .driver_impl import UiautomatorDriver
 from .driver_mock import MockDriver
-from .config import settings
 from .models import CommandType, VehicleStatus
 
 logging.basicConfig(level=logging.INFO)
@@ -75,7 +76,7 @@ async def get_status():
             return await asyncio.to_thread(controller.get_status)
         except HondaLinkException as e:
             logger.exception("Error getting status")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 @app.post("/action/{command}", response_model=ActionResponse)
 async def execute_command(command: CommandType):
@@ -88,4 +89,4 @@ async def execute_command(command: CommandType):
             return ActionResponse(status="success", message=f"Command {command} executed successfully")
         except HondaLinkException as e:
             logger.exception(f"Error executing command {command}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e

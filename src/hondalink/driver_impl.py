@@ -1,6 +1,8 @@
+
 import uiautomator2 as u2
-from typing import Optional
+
 from .driver import AndroidDriver, UIElement
+
 
 class U2ElementWrapper:
     def __init__(self, element):
@@ -27,7 +29,7 @@ class UiautomatorDriver(AndroidDriver):
     def __init__(self):
         self.d = None
 
-    def connect(self, address: Optional[str] = None) -> None:
+    def connect(self, address: str | None = None) -> None:
         if address:
             self.d = u2.connect(address)
         else:

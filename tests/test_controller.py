@@ -1,7 +1,15 @@
-import pytest
 from unittest.mock import MagicMock
-from hondalink.controller import HondaLinkController, CommandFailedException, CommandType
+
+import pytest
+from tenacity import RetryError
+
+from hondalink.config import settings
+from hondalink.controller import (
+    CommandType,
+    HondaLinkController,
+)
 from hondalink.driver_mock import MockDriver
+
 
 @pytest.fixture
 def mock_driver():
@@ -37,7 +45,11 @@ def test_execute_remote_command_handles_error_popup(controller, mock_driver):
     mock_driver.register_element("text=Start", exists=True)
 
     # Popup handling
-    mock_driver.register_element("text=An error has occurred. Please try again later", exists=True)
+    # Note: The controller looks for "An error has occurred"
+    # substring logic if generalized,
+    # but the find_by_text requires exact match in the mock unless I changed it.
+    # The controller code was updated to search for "An error has occurred" (shortened)
+    mock_driver.register_element("text=An error has occurred", exists=True)
     ok_btn = mock_driver.register_element("text=OK", exists=True)
 
     # Act
@@ -51,16 +63,11 @@ def test_execute_remote_command_retry(controller, mock_driver):
     mock_driver.connect()
 
     # Initially "Start" does not exist
-    start_btn = mock_driver.register_element("text=Start", exists=False)
+    # Remove assignment to unused variable
+    mock_driver.register_element("text=Start", exists=False)
     mock_driver.register_element("text=Remote Commands", exists=True)
 
-    # We can't easily change the mock state *during* the call with the current mock implementation.
-    # The MockDriver is simple.
-    # However, tenacity retries.
-    # If the button is missing, it raises CommandFailedException.
-
-    # Let's verify it raises after retries if never found
-    from tenacity import RetryError
+    # Verify it raises after retries if never found
     with pytest.raises(RetryError):
         controller.execute_remote_command(CommandType.START)
 
@@ -77,3 +84,25 @@ def test_get_status_unlocked(controller, mock_driver):
 
     status = controller.get_status()
     assert status.is_locked is False
+
+def test_execute_remote_command_handles_pin_prompt(controller, mock_driver):
+    # Setup
+    settings.pin_code = "1234"
+    mock_driver.connect()
+    start_btn = mock_driver.register_element("text=Start", exists=True)
+
+    # Simulate PIN prompt appearing
+    mock_driver.register_element("text=Enter PIN", exists=True)
+    pin_input = mock_driver.register_element(
+        "xpath=//android.widget.EditText", exists=True
+    )
+    # The controller looks for "Enter" or "OK"
+    enter_btn = mock_driver.register_element("text=Enter", exists=True)
+
+    # Act
+    controller.execute_remote_command(CommandType.START)
+
+    # Assert
+    assert start_btn.clicked
+    assert pin_input.input_text == "1234"
+    assert enter_btn.clicked

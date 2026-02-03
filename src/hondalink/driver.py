@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Protocol
+from typing import Protocol
+
 
 class UIElement(Protocol):
     @property
@@ -13,7 +14,7 @@ class UIElement(Protocol):
 
 class AndroidDriver(ABC):
     @abstractmethod
-    def connect(self, address: Optional[str] = None) -> None:
+    def connect(self, address: str | None = None) -> None:
         """Connect to the device."""
         pass
 

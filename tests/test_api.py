@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
-from hondalink.main import app
+
 from hondalink.config import settings
+from hondalink.main import app
 
 # Force mock driver for tests
 settings.use_mock_driver = True
