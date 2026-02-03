@@ -1,5 +1,6 @@
 import uiautomator2 as u2
 
+from .config import settings
 from .driver import AndroidDriver, UIElement
 
 
@@ -38,8 +39,22 @@ class UiautomatorDriver(AndroidDriver):
             self.d = u2.connect()
 
     def app_start(self, package_name: str, stop: bool = False) -> None:
-        if self.d:
-            self.d.app_start(package_name, stop=stop)
+        if not self.d:
+            return
+
+        if stop:
+            self.d.app_stop(package_name)
+
+        if package_name == settings.hondalink_package:
+            activity = settings.hondalink_launcher_activity
+            self.d.shell(f"am start -n {package_name}/{activity}")
+        else:
+            try:
+                self.d.app_start(package_name, stop=False)
+            except Exception:
+                self.d.shell(
+                    f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+                )
 
     def app_stop(self, package_name: str) -> None:
         if self.d:
