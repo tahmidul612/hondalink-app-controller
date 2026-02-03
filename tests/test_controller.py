@@ -383,3 +383,49 @@ def test_get_status_raises_when_no_cache_and_exception(controller, mock_driver):
 
     with pytest.raises(Exception, match="Connection lost"):
         controller.get_status()
+
+
+def test_get_remote_start_status_active(controller, mock_driver):
+    mock_driver.connect()
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/text_success_timer",
+        exists=True,
+        text="09:58",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/remote_command_inside_temp",
+        exists=True,
+        text="-2 °C",
+    )
+
+    status = controller.get_remote_start_status()
+    assert status.is_active is True
+    assert status.remaining_time == "09:58"
+    assert status.cabin_temperature == "-2 °C"
+
+
+def test_get_remote_start_status_inactive(controller, mock_driver):
+    mock_driver.connect()
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/text_success_timer",
+        exists=False,
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/remote_command_inside_temp",
+        exists=False,
+    )
+
+    status = controller.get_remote_start_status()
+    assert status.is_active is False
+    assert status.remaining_time == "Unknown"
+    assert status.cabin_temperature == "Unknown"
+
+
+def test_execute_remote_command_uses_extend_when_active(controller, mock_driver):
+    mock_driver.connect()
+    extend_btn = mock_driver.register_element("text=Extend", exists=True)
+    mock_driver.register_element("text=Start", exists=True)
+
+    controller.execute_remote_command(CommandType.START)
+
+    assert extend_btn.clicked

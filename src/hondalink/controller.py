@@ -5,7 +5,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fi
 
 from .config import settings
 from .driver import AndroidDriver
-from .models import CommandType, VehicleStatus
+from .models import CommandType, RemoteStartStatus, VehicleStatus
 
 logger = logging.getLogger(__name__)
 
@@ -113,42 +113,17 @@ class HondaLinkController:
 
     def _handle_popups(self):
         """Dismisses common popups."""
-        # Handle specific known error popups first
-        error_popup = self.driver.find_by_text("An error has occurred")
-        if error_popup.exists():
-            logger.warning("Found 'An error has occurred' popup, dismissing.")
-            ok_btn = self.driver.find_by_text("OK")
-            if ok_btn.exists():
-                ok_btn.click()
-                time.sleep(1)
-            return
+        error_message_elem = self.driver.find_by_resource_id("android:id/message")
+        if error_message_elem.exists():
+            error_text = error_message_elem.text
+            if error_text and "error" in error_text.lower():
+                logger.warning(f"Found error popup: '{error_text}', dismissing.")
+                ok_btn = self.driver.find_by_text("OK")
+                if ok_btn.exists():
+                    ok_btn.click()
+                    time.sleep(1)
+                return
 
-        something_wrong_popup = self.driver.find_by_text("Something Went Wrong")
-        if something_wrong_popup.exists():
-            logger.warning("Found 'Something Went Wrong' popup, dismissing.")
-            ok_btn = self.driver.find_by_text("OK")
-            if ok_btn.exists():
-                ok_btn.click()
-                time.sleep(1)
-            return
-
-        # Generic error handler: catch any modal with "error" in text (case-insensitive)
-        # XPath: find any element containing "error" or "Error" in its text
-        generic_error = self.driver.find_by_xpath(
-            "//*[contains(translate(@text, 'ERROR', 'error'), 'error')]"
-        )
-        if generic_error.exists():
-            error_text = generic_error.text
-            logger.warning(
-                f"Found generic error popup with text: '{error_text}', dismissing."
-            )
-            ok_btn = self.driver.find_by_text("OK")
-            if ok_btn.exists():
-                ok_btn.click()
-                time.sleep(1)
-            return
-
-        # Handle incorrect PIN separately as it should raise an exception
         incorrect_pin = self.driver.find_by_text("Incorrect PIN")
         if incorrect_pin.exists():
             logger.error("Incorrect PIN error popup detected")
@@ -305,6 +280,56 @@ class HondaLinkController:
             or status.last_updated != "Unknown"
         )
 
+    def get_remote_start_status(self) -> RemoteStartStatus:
+        try:
+            current = self.driver.app_current()
+            pkg = current.get("package")
+            logger.info(f"get_remote_start_status called, current package: {pkg}")
+
+            if current.get("package") != self.package:
+                logger.info("App not in foreground, opening...")
+                self.ensure_app_open()
+
+            timer_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/text_success_timer"
+            )
+            temp_elem = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/remote_command_inside_temp"
+            )
+
+            timer_exists = bool(timer_elem.exists())
+            temp_exists = bool(temp_elem.exists())
+
+            logger.info(f"Element check: timer={timer_exists}, temp={temp_exists}")
+
+            is_active = bool(timer_exists and temp_exists)
+
+            if is_active:
+                remaining_time = timer_elem.text if timer_elem.text else "Unknown"
+                cabin_temperature = temp_elem.text if temp_elem.text else "Unknown"
+                logger.info(
+                    f"Remote start ACTIVE: {remaining_time} remaining, "
+                    f"cabin temp: {cabin_temperature}"
+                )
+            else:
+                remaining_time = "Unknown"
+                cabin_temperature = "Unknown"
+                logger.info("Remote start NOT active (elements not found)")
+
+            return RemoteStartStatus(
+                is_active=is_active,
+                remaining_time=remaining_time,
+                cabin_temperature=cabin_temperature,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to get remote start status: {e}", exc_info=True)
+            return RemoteStartStatus(
+                is_active=False,
+                remaining_time="Unknown",
+                cabin_temperature="Unknown",
+            )
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_fixed(2),
@@ -328,7 +353,16 @@ class HondaLinkController:
         if not btn_text:
             raise CommandFailedException(f"Unknown command {command}")
 
-        btn = self.driver.find_by_text(btn_text)
+        if command == CommandType.START:
+            extend_btn = self.driver.find_by_text("Extend")
+            if extend_btn.exists():
+                logger.info("Remote start already active, using Extend button instead")
+                btn = extend_btn
+            else:
+                btn = self.driver.find_by_text(btn_text)
+        else:
+            btn = self.driver.find_by_text(btn_text)
+
         if not btn.exists():
             raise CommandFailedException(f"Button {btn_text} not found")
 

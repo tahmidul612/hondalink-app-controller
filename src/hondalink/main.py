@@ -10,7 +10,7 @@ from .config import settings
 from .controller import HondaLinkController, HondaLinkException
 from .driver_impl import UiautomatorDriver
 from .driver_mock import MockDriver
-from .models import CommandType, VehicleStatus
+from .models import CommandType, RemoteStartStatus, VehicleStatus
 from .security import (
     audit_logger,
     check_api_rate_limit,
@@ -37,10 +37,30 @@ async def lifespan(app: FastAPI):
         driver.register_element("text=Remote Commands")
         driver.register_element("text=Refresh")
         driver.register_element("text=Start")
+        driver.register_element("text=Extend")
         driver.register_element("text=Stop")
         driver.register_element("text=Lock")
         driver.register_element("text=Unlock")
         driver.register_element("text=Locked")
+        driver.register_element(
+            "id=com.honda.hondalink.connect:id/remote_command_success_layout",
+            exists=False,
+        )
+        driver.register_element(
+            "id=com.honda.hondalink.connect:id/text_remote_command_extend",
+            text="Extend",
+            exists=False,
+        )
+        driver.register_element(
+            "id=com.honda.hondalink.connect:id/text_success_timer",
+            text="09:58",
+            exists=False,
+        )
+        driver.register_element(
+            "id=com.honda.hondalink.connect:id/remote_command_inside_temp",
+            text="-2 °C",
+            exists=False,
+        )
     else:
         logger.info("Using REAL driver")
         driver = UiautomatorDriver()
@@ -123,6 +143,41 @@ async def get_status(
             logger.exception("Error getting status")
             audit_logger.log_event(
                 event_type="status_check_failed",
+                client_ip=client_ip,
+                details={"error": str(e)},
+            )
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get(
+    "/remote-start/status",
+    response_model=RemoteStartStatus,
+    dependencies=[
+        Depends(verify_ip_whitelist),
+        Depends(check_api_rate_limit),
+    ],
+)
+async def get_remote_start_status(
+    request: Request,
+    _api_key: Annotated[str, Depends(verify_api_key)],
+):
+    if not controller:
+        raise HTTPException(status_code=500, detail="Controller not initialized")
+
+    client_ip = get_client_ip(request)
+    audit_logger.log_event(
+        event_type="remote_start_status_check",
+        client_ip=client_ip,
+        details={"endpoint": "/remote-start/status"},
+    )
+
+    async with lock:
+        try:
+            return await asyncio.to_thread(controller.get_remote_start_status)
+        except HondaLinkException as e:
+            logger.exception("Error getting remote start status")
+            audit_logger.log_event(
+                event_type="remote_start_status_check_failed",
                 client_ip=client_ip,
                 details={"error": str(e)},
             )

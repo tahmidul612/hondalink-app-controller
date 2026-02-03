@@ -36,6 +36,7 @@ FastAPI service controlling HondaLink Android app via uiautomator2. Provides RES
 | Fix UI element selector | `controller.py` | Text/XPath selectors, see BRITTLE PATTERNS |
 | Mock Android device | `driver_mock.py` | Register elements with `.register_element()` |
 | Add vehicle command | `models.py` + `controller.py` | Add enum + handler |
+| Monitor remote start | `controller.get_remote_start_status()` | Returns timer + cabin temp during active session |
 | Change env config | `config.py` | Pydantic settings from `.env` |
 | Debug UI hierarchy | `/debug/hierarchy` endpoint | Dumps XML when selectors fail |
 
@@ -104,6 +105,24 @@ self.driver.find_by_resource_id("com.honda.auto:id/btn_start")
 self.driver.find_by_xpath("//*[@text='Odometer']/following-sibling::*[@text]")
 ```
 
+### Remote Start Extend Logic
+
+**Behavior**: When remote start is active, "Start" button becomes "Extend" button  
+**Location**: `controller.py:execute_remote_command()`  
+**Implementation**: Checks for "Extend" button first when START command is issued
+
+```python
+# Automatically uses Extend button if remote start is already active
+if command == CommandType.START:
+    extend_btn = self.driver.find_by_text("Extend")
+    if extend_btn.exists():
+        btn = extend_btn  # Use Extend instead of Start
+```
+
+**Resource IDs for Remote Start Status**:
+- Timer: `com.honda.hondalink.connect:id/text_success_timer` (format: "MM:SS")
+- Cabin Temp: `com.honda.hondalink.connect:id/remote_command_inside_temp` (format: "XX °C")
+
 ## CODE CONVENTIONS
 
 ### Ruff Linting (Strict)
@@ -163,6 +182,67 @@ uv run ruff format src/ tests/   # Auto-format
 curl http://localhost:8000/debug/hierarchy > ui.xml
 # Inspect ui.xml to find correct selectors when elements fail
 ```
+
+## API ENDPOINTS
+
+### GET /health
+Health check endpoint (no authentication required)
+
+### GET /status
+Get vehicle status (odometer, fuel, lock state, etc.)
+
+**Response:**
+```json
+{
+  "odometer": "173,305 km",
+  "fuel_level": "56.0%",
+  "range_remaining": "327 km",
+  "oil_life": "5 %",
+  "is_locked": true,
+  "last_updated": "Last updated at 05:33 p.m."
+}
+```
+
+### GET /remote-start/status
+Get active remote start session status (timer and cabin temperature)
+
+**Response when active:**
+```json
+{
+  "is_active": true,
+  "remaining_time": "09:58",
+  "cabin_temperature": "-2 °C"
+}
+```
+
+**Response when inactive:**
+```json
+{
+  "is_active": false,
+  "remaining_time": "Unknown",
+  "cabin_temperature": "Unknown"
+}
+```
+
+**Note**: This endpoint checks for remote start UI elements without disrupting the active session.
+
+### POST /action/{command}
+Execute vehicle command: `start`, `stop`, `lock`, `unlock`
+
+**Special behavior for START command:**
+- If remote start is already active, automatically uses "Extend" button instead
+- Extends the current remote start session by 10 minutes
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Command start executed successfully"
+}
+```
+
+### GET /debug/hierarchy
+Dump current UI hierarchy as XML (useful for debugging selectors)
 
 ## MAINTENANCE REQUIREMENTS
 
