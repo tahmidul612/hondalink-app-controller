@@ -27,7 +27,7 @@ def test_ensure_app_open_launches_app(controller, mock_driver):
 
     controller.ensure_app_open()
 
-    mock_driver.app_start.assert_called_with("com.honda.auto")
+    mock_driver.app_start.assert_called_with("com.honda.hondalink.connect", stop=True)
 
 
 def test_execute_remote_command_flow(controller, mock_driver):
@@ -153,26 +153,34 @@ def test_get_status_unlocked(controller, mock_driver):
 
 
 def test_execute_remote_command_handles_pin_prompt(controller, mock_driver):
-    # Setup
     settings.pin_code = "1234"
     mock_driver.connect()
     start_btn = mock_driver.register_element("text=Start", exists=True)
 
-    # Simulate PIN prompt appearing
-    mock_driver.register_element("text=Enter PIN", exists=True)
-    pin_input = mock_driver.register_element(
-        "xpath=//android.widget.EditText", exists=True
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/pinView", exists=True
     )
-    # The controller looks for "Enter" or "OK"
-    enter_btn = mock_driver.register_element("text=Enter", exists=True)
+    pin_field1 = mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/pinText_one", exists=True
+    )
+    pin_field2 = mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/pinText_two", exists=True
+    )
+    pin_field3 = mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/pinText_three", exists=True
+    )
+    pin_field4 = mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/pinText_four", exists=True
+    )
+    mock_driver.register_element("text=Incorrect PIN", exists=False)
 
-    # Act
     controller.execute_remote_command(CommandType.START)
 
-    # Assert
     assert start_btn.clicked
-    assert pin_input.input_text == "1234"
-    assert enter_btn.clicked
+    assert pin_field1.input_text == "1"
+    assert pin_field2.input_text == "2"
+    assert pin_field3.input_text == "3"
+    assert pin_field4.input_text == "4"
 
 
 def test_execute_remote_command_expands_collapsed_panel(controller, mock_driver):

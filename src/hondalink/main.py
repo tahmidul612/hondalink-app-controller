@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 controller: HondaLinkController | None = None
 lock = asyncio.Lock()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global controller
     if settings.use_mock_driver:
         logger.info("Using MOCK driver")
         driver = MockDriver()
-        # Setup basic mock state
         driver.connect()
         driver.register_element("text=Remote Commands")
         driver.register_element("text=Refresh")
@@ -38,24 +38,32 @@ async def lifespan(app: FastAPI):
 
     controller = HondaLinkController(driver)
     try:
-        # We do initial connection here, but real connection might happen lazily
-        # depending on uiautomator2 behavior.
-        # But controller.connect() is good practice.
         controller.connect()
     except Exception as e:
         logger.error(f"Failed to connect on startup: {e}")
 
     yield
 
+    if controller and not settings.use_mock_driver:
+        try:
+            logger.info("Shutting down: stopping HondaLink app")
+            controller.driver.app_stop(settings.hondalink_package)
+        except Exception as e:
+            logger.error(f"Error stopping app on shutdown: {e}")
+
+
 app = FastAPI(title="HondaLink Controller", lifespan=lifespan)
+
 
 class ActionResponse(BaseModel):
     status: str
     message: str
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 @app.get("/debug/hierarchy")
 async def get_hierarchy():
@@ -65,6 +73,7 @@ async def get_hierarchy():
     async with lock:
         xml = await asyncio.to_thread(controller.get_xml_hierarchy)
         return Response(content=xml, media_type="application/xml")
+
 
 @app.get("/status", response_model=VehicleStatus)
 async def get_status():
@@ -78,6 +87,7 @@ async def get_status():
             logger.exception("Error getting status")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+
 @app.post("/action/{command}", response_model=ActionResponse)
 async def execute_command(command: CommandType):
     if not controller:
@@ -86,7 +96,9 @@ async def execute_command(command: CommandType):
     async with lock:
         try:
             await asyncio.to_thread(controller.execute_remote_command, command)
-            return ActionResponse(status="success", message=f"Command {command} executed successfully")
+            return ActionResponse(
+                status="success", message=f"Command {command} executed successfully"
+            )
         except HondaLinkException as e:
             logger.exception(f"Error executing command {command}")
             raise HTTPException(status_code=500, detail=str(e)) from e

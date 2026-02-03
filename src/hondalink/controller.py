@@ -41,48 +41,77 @@ class HondaLinkController:
         Checks for PIN entry screen and enters PIN if present.
         Returns True if PIN was entered, False otherwise.
         """
-        pin_label = self.driver.find_by_text("Enter PIN")
-        if pin_label.exists():
-            logger.info("PIN screen detected")
-            if settings.pin_code:
-                # Try to find an input field
-                # Using generic XPath for EditText
-                pin_input = self.driver.find_by_xpath("//android.widget.EditText")
-                if pin_input.exists():
-                    pin_input.set_text(settings.pin_code)
-                    # Look for Enter or OK button
-                    ok_btn = self.driver.find_by_text("Enter")
-                    if not ok_btn.exists():
-                        ok_btn = self.driver.find_by_text("OK")
+        # Fast check using more specific resource ID
+        pin_view = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/pinView"
+        )
+        if not pin_view.exists():
+            return False
 
-                    if ok_btn.exists():
-                        ok_btn.click()
-                        time.sleep(3)
-                        return True
-                else:
-                    logger.warning("PIN label found but no input field found")
-            else:
-                logger.error("PIN required but not configured in settings")
-                raise AppNotReadyException("PIN required but not configured")
-        return False
+        logger.info("PIN screen detected")
+        if not settings.pin_code:
+            logger.error("PIN required but not configured in settings")
+            raise AppNotReadyException("PIN required but not configured")
+
+        # Validate PIN is 4 digits
+        pin = settings.pin_code.strip()
+        if len(pin) != 4 or not pin.isdigit():
+            logger.error(f"PIN must be exactly 4 digits, got: {len(pin)} characters")
+            raise AppNotReadyException("PIN must be exactly 4 digits")
+
+        # Enter each digit into its respective field using resource IDs
+        pin_field_ids = [
+            "com.honda.hondalink.connect:id/pinText_one",
+            "com.honda.hondalink.connect:id/pinText_two",
+            "com.honda.hondalink.connect:id/pinText_three",
+            "com.honda.hondalink.connect:id/pinText_four",
+        ]
+
+        for i, field_id in enumerate(pin_field_ids):
+            pin_field = self.driver.find_by_resource_id(field_id)
+            if not pin_field.exists():
+                logger.error(f"PIN field {i + 1} not found: {field_id}")
+                raise AppNotReadyException(f"PIN field {i + 1} not found")
+
+            # Click to focus and enter digit
+            pin_field.click()
+            time.sleep(0.05)  # Brief delay for focus
+            pin_field.set_text(pin[i])
+
+        logger.info("PIN entered successfully")
+        # PIN is auto-submitted when 4th digit is entered, no need to click OK
+        # Wait briefly for validation
+        time.sleep(0.5)
+
+        # Check for incorrect PIN error
+        incorrect_pin = self.driver.find_by_text("Incorrect PIN")
+        if incorrect_pin.exists():
+            logger.error("Incorrect PIN entered")
+            raise AppNotReadyException("Incorrect PIN")
+
+        return True
 
     def ensure_app_open(self):
         """Ensures the app is in the foreground and ready."""
         current = self.driver.app_current()
         if current.get("package") != self.package:
             logger.info("Starting HondaLink app...")
-            self.driver.app_start(self.package)
-            time.sleep(5)  # Wait for launch
+            self.driver.app_start(self.package, stop=True)
 
-        # Check for PIN screen (initial launch)
+            for _ in range(20):
+                time.sleep(0.5)
+                current = self.driver.app_current()
+                if current.get("package") == self.package:
+                    logger.info("App started successfully")
+                    break
+            else:
+                logger.warning("App may not have started correctly")
+
         self._handle_pin_entry()
-
-        # Check for unexpected popups (e.g. "Agree" to terms)
         self._handle_popups()
 
     def _handle_popups(self):
         """Dismisses common popups."""
-        # Example: "An error has occurred" -> OK
         error_popup = self.driver.find_by_text("An error has occurred")
         if error_popup.exists():
             logger.warning("Found error popup, dismissing.")
@@ -90,6 +119,15 @@ class HondaLinkController:
             if ok_btn.exists():
                 ok_btn.click()
                 time.sleep(1)
+
+        incorrect_pin = self.driver.find_by_text("Incorrect PIN")
+        if incorrect_pin.exists():
+            logger.error("Incorrect PIN error popup detected")
+            ok_btn = self.driver.find_by_text("OK")
+            if ok_btn.exists():
+                ok_btn.click()
+                time.sleep(0.5)
+            raise AppNotReadyException("Incorrect PIN entered")
 
     def _navigate_to_home(self):
         """Navigates to the main dashboard screen."""
@@ -228,25 +266,21 @@ class HondaLinkController:
         logger.info(f"Clicking command button: {btn_text}")
         btn.click()
 
-        # Poll for PIN screen or result
         logger.info("Waiting for PIN screen or result...")
         start_time = time.time()
         pin_entered = False
 
-        while time.time() - start_time < 10:
+        while time.time() - start_time < 8:
             if self._handle_pin_entry():
                 pin_entered = True
-                logger.info("PIN entered successfully.")
+                logger.info("PIN entry flow completed")
                 break
 
-            # Also check for popups here just in case
             self._handle_popups()
-
-            time.sleep(0.5)
+            time.sleep(0.2)
 
         if pin_entered:
-            # Wait a bit more for the command to actually process after PIN
-            time.sleep(5)
+            time.sleep(2)
 
         logger.info(f"Command {command} executed")
         return True
