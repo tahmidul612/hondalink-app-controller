@@ -9,14 +9,18 @@ from .models import CommandType, VehicleStatus
 
 logger = logging.getLogger(__name__)
 
+
 class HondaLinkException(Exception):
     pass
+
 
 class AppNotReadyException(HondaLinkException):
     pass
 
+
 class CommandFailedException(HondaLinkException):
     pass
+
 
 class HondaLinkController:
     def __init__(self, driver: AndroidDriver):
@@ -101,13 +105,11 @@ class HondaLinkController:
         self.ensure_app_open()
         self._navigate_to_home()
 
-        # Refresh data?
         refresh_btn = self.driver.find_by_text("Refresh")
         if refresh_btn.exists():
             refresh_btn.click()
-            time.sleep(2) # Wait for refresh?
+            time.sleep(2)
 
-        # Parse data
         odometer = "Unknown"
         fuel = "Unknown"
         range_val = "Unknown"
@@ -115,8 +117,44 @@ class HondaLinkController:
         locked = False
         last_updated = "Unknown"
 
-        if self.driver.find_by_text("Locked").exists():
-            locked = True
+        odometer_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/tv_odometer_value"
+        )
+        if odometer_elem.exists():
+            odometer = odometer_elem.text
+
+        fuel_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/progressbar_fuel_level"
+        )
+        if fuel_elem.exists():
+            fuel_text = fuel_elem.text
+            if fuel_text:
+                fuel = f"{fuel_text}%"
+
+        range_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/tv_total_range_value"
+        )
+        if range_elem.exists():
+            range_val = range_elem.text
+
+        oil_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/tv_oil_value"
+        )
+        if oil_elem.exists():
+            oil = oil_elem.text
+
+        lock_status_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/textView_lockStatus"
+        )
+        if lock_status_elem.exists():
+            lock_text = lock_status_elem.text
+            locked = lock_text == "Locked"
+
+        last_updated_elem = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/txt_last_updated_time"
+        )
+        if last_updated_elem.exists():
+            last_updated = last_updated_elem.text
 
         return VehicleStatus(
             odometer=odometer,
@@ -124,10 +162,13 @@ class HondaLinkController:
             range_remaining=range_val,
             oil_life=oil,
             is_locked=locked,
-            last_updated=last_updated
+            last_updated=last_updated,
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(2), retry=retry_if_exception_type(CommandFailedException)
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(CommandFailedException),
     )
     def execute_remote_command(self, command: CommandType):
         self.ensure_app_open()
@@ -147,7 +188,7 @@ class HondaLinkController:
             CommandType.START: "Start",
             CommandType.STOP: "Stop",
             CommandType.LOCK: "Lock",
-            CommandType.UNLOCK: "Unlock"
+            CommandType.UNLOCK: "Unlock",
         }.get(command)
 
         if not btn_text:
@@ -155,13 +196,12 @@ class HondaLinkController:
 
         btn = self.driver.find_by_text(btn_text)
         if not btn.exists():
-             raise CommandFailedException(f"Button {btn_text} not found")
+            raise CommandFailedException(f"Button {btn_text} not found")
 
         logger.info(f"Clicking command button: {btn_text}")
         btn.click()
 
         # Poll for PIN screen or result
-        # The user noted: "it takes a second or two for the screen to appear... continuously be checking"
         logger.info("Waiting for PIN screen or result...")
         start_time = time.time()
         pin_entered = False
