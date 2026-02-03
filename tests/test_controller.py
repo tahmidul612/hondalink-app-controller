@@ -15,9 +15,11 @@ from hondalink.driver_mock import MockDriver
 def mock_driver():
     return MockDriver()
 
+
 @pytest.fixture
 def controller(mock_driver):
     return HondaLinkController(mock_driver)
+
 
 def test_ensure_app_open_launches_app(controller, mock_driver):
     mock_driver.app_current = MagicMock(return_value={"package": "com.other.app"})
@@ -26,6 +28,7 @@ def test_ensure_app_open_launches_app(controller, mock_driver):
     controller.ensure_app_open()
 
     mock_driver.app_start.assert_called_with("com.honda.auto")
+
 
 def test_execute_remote_command_flow(controller, mock_driver):
     # Setup
@@ -38,6 +41,7 @@ def test_execute_remote_command_flow(controller, mock_driver):
 
     # Assert
     assert start_btn.clicked
+
 
 def test_execute_remote_command_handles_error_popup(controller, mock_driver):
     # Setup
@@ -58,6 +62,7 @@ def test_execute_remote_command_handles_error_popup(controller, mock_driver):
     # Assert
     assert ok_btn.clicked
 
+
 def test_execute_remote_command_retry(controller, mock_driver):
     # Simulate first attempt fails (button not found), second attempt succeeds
     mock_driver.connect()
@@ -71,19 +76,81 @@ def test_execute_remote_command_retry(controller, mock_driver):
     with pytest.raises(RetryError):
         controller.execute_remote_command(CommandType.START)
 
+
 def test_get_status_locked(controller, mock_driver):
     mock_driver.connect()
-    mock_driver.register_element("text=Locked", exists=True)
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/textView_lockStatus",
+        exists=True,
+        text="Locked",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=True,
+        text="173,305 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=True,
+        text="56.0",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=True,
+        text="327 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=True, text="5 %"
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=True,
+        text="Last updated at 01:33 p.m.",
+    )
 
     status = controller.get_status()
     assert status.is_locked is True
+    assert status.odometer == "173,305 km"
+    assert status.fuel_level == "56.0%"
+    assert status.range_remaining == "327 km"
+    assert status.oil_life == "5 %"
+    assert status.last_updated == "Last updated at 01:33 p.m."
+
 
 def test_get_status_unlocked(controller, mock_driver):
     mock_driver.connect()
-    mock_driver.register_element("text=Locked", exists=False)
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/textView_lockStatus",
+        exists=True,
+        text="Unlocked",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_odometer_value",
+        exists=True,
+        text="173,305 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/progressbar_fuel_level",
+        exists=True,
+        text="56.0",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_total_range_value",
+        exists=True,
+        text="327 km",
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/tv_oil_value", exists=True, text="5 %"
+    )
+    mock_driver.register_element(
+        "id=com.honda.hondalink.connect:id/txt_last_updated_time",
+        exists=True,
+        text="Last updated at 01:33 p.m.",
+    )
 
     status = controller.get_status()
     assert status.is_locked is False
+
 
 def test_execute_remote_command_handles_pin_prompt(controller, mock_driver):
     # Setup
