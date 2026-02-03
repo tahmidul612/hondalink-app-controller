@@ -63,6 +63,44 @@ def test_execute_remote_command_handles_error_popup(controller, mock_driver):
     assert ok_btn.clicked
 
 
+def test_execute_remote_command_handles_something_went_wrong_popup(
+    controller, mock_driver
+):
+    # Setup
+    mock_driver.connect()
+    mock_driver.register_element("text=Start", exists=True)
+
+    # "Something Went Wrong" popup handling
+    mock_driver.register_element("text=Something Went Wrong", exists=True)
+    ok_btn = mock_driver.register_element("text=OK", exists=True)
+
+    # Act
+    controller.execute_remote_command(CommandType.START)
+
+    # Assert
+    assert ok_btn.clicked
+
+
+def test_execute_remote_command_handles_generic_error_popup(controller, mock_driver):
+    # Setup
+    mock_driver.connect()
+    mock_driver.register_element("text=Start", exists=True)
+
+    # Generic error with "error" in text
+    mock_driver.register_element(
+        "xpath=//*[contains(translate(@text, 'ERROR', 'error'), 'error')]",
+        exists=True,
+        text="Connection error occurred",
+    )
+    ok_btn = mock_driver.register_element("text=OK", exists=True)
+
+    # Act
+    controller.execute_remote_command(CommandType.START)
+
+    # Assert
+    assert ok_btn.clicked
+
+
 def test_execute_remote_command_retry(controller, mock_driver):
     # Simulate first attempt fails (button not found), second attempt succeeds
     mock_driver.connect()

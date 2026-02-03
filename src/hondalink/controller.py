@@ -69,7 +69,7 @@ class HondaLinkController:
 
         for i, field_id in enumerate(pin_field_ids):
             pin_field = self.driver.find_by_resource_id(field_id)
-            if not pin_field.exists():
+            if not pin_field.wait(timeout=5.0):
                 logger.error(f"PIN field {i + 1} not found: {field_id}")
                 raise AppNotReadyException(f"PIN field {i + 1} not found")
 
@@ -112,14 +112,42 @@ class HondaLinkController:
 
     def _handle_popups(self):
         """Dismisses common popups."""
+        # Handle specific known error popups first
         error_popup = self.driver.find_by_text("An error has occurred")
         if error_popup.exists():
-            logger.warning("Found error popup, dismissing.")
+            logger.warning("Found 'An error has occurred' popup, dismissing.")
             ok_btn = self.driver.find_by_text("OK")
             if ok_btn.exists():
                 ok_btn.click()
                 time.sleep(1)
+            return
 
+        something_wrong_popup = self.driver.find_by_text("Something Went Wrong")
+        if something_wrong_popup.exists():
+            logger.warning("Found 'Something Went Wrong' popup, dismissing.")
+            ok_btn = self.driver.find_by_text("OK")
+            if ok_btn.exists():
+                ok_btn.click()
+                time.sleep(1)
+            return
+
+        # Generic error handler: catch any modal with "error" in text (case-insensitive)
+        # XPath: find any element containing "error" or "Error" in its text
+        generic_error = self.driver.find_by_xpath(
+            "//*[contains(translate(@text, 'ERROR', 'error'), 'error')]"
+        )
+        if generic_error.exists():
+            error_text = generic_error.text
+            logger.warning(
+                f"Found generic error popup with text: '{error_text}', dismissing."
+            )
+            ok_btn = self.driver.find_by_text("OK")
+            if ok_btn.exists():
+                ok_btn.click()
+                time.sleep(1)
+            return
+
+        # Handle incorrect PIN separately as it should raise an exception
         incorrect_pin = self.driver.find_by_text("Incorrect PIN")
         if incorrect_pin.exists():
             logger.error("Incorrect PIN error popup detected")
