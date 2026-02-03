@@ -44,60 +44,48 @@ def test_execute_remote_command_flow(controller, mock_driver):
 
 
 def test_execute_remote_command_handles_error_popup(controller, mock_driver):
-    # Setup
     mock_driver.connect()
     mock_driver.register_element("text=Start", exists=True)
 
-    # Popup handling
-    # Note: The controller looks for "An error has occurred"
-    # substring logic if generalized,
-    # but the find_by_text requires exact match in the mock unless I changed it.
-    # The controller code was updated to search for "An error has occurred" (shortened)
-    mock_driver.register_element("text=An error has occurred", exists=True)
+    mock_driver.register_element(
+        "id=android:id/message", exists=True, text="An error has occurred"
+    )
     ok_btn = mock_driver.register_element("text=OK", exists=True)
 
-    # Act
     controller.execute_remote_command(CommandType.START)
 
-    # Assert
     assert ok_btn.clicked
 
 
 def test_execute_remote_command_handles_something_went_wrong_popup(
     controller, mock_driver
 ):
-    # Setup
     mock_driver.connect()
     mock_driver.register_element("text=Start", exists=True)
 
-    # "Something Went Wrong" popup handling
-    mock_driver.register_element("text=Something Went Wrong", exists=True)
+    mock_driver.register_element(
+        "id=android:id/message",
+        exists=True,
+        text="Something went wrong with your request",
+    )
     ok_btn = mock_driver.register_element("text=OK", exists=True)
 
-    # Act
     controller.execute_remote_command(CommandType.START)
 
-    # Assert
     assert ok_btn.clicked
 
 
 def test_execute_remote_command_handles_generic_error_popup(controller, mock_driver):
-    # Setup
     mock_driver.connect()
     mock_driver.register_element("text=Start", exists=True)
 
-    # Generic error with "error" in text
     mock_driver.register_element(
-        "xpath=//*[contains(translate(@text, 'ERROR', 'error'), 'error')]",
-        exists=True,
-        text="Connection error occurred",
+        "id=android:id/message", exists=True, text="Connection error occurred"
     )
     ok_btn = mock_driver.register_element("text=OK", exists=True)
 
-    # Act
     controller.execute_remote_command(CommandType.START)
 
-    # Assert
     assert ok_btn.clicked
 
 
@@ -224,7 +212,7 @@ def test_execute_remote_command_handles_pin_prompt(controller, mock_driver):
 def test_execute_remote_command_expands_collapsed_panel(controller, mock_driver):
     mock_driver.connect()
 
-    remote_commands_text = mock_driver.register_element(
+    mock_driver.register_element(
         "text=Remote Commands", exists=True, bounds=(261, 1077, 475, 1110)
     )
     start_btn = mock_driver.register_element("text=Start", exists=True)
@@ -267,7 +255,7 @@ def test_get_status_caches_successful_result(controller, mock_driver):
 
     assert controller.last_known_status is None
 
-    status = controller.get_status()
+    controller.get_status()
 
     assert controller.last_known_status is not None
     assert controller.last_known_status.odometer == "100,000 km"

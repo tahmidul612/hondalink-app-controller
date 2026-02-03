@@ -116,13 +116,15 @@ class HondaLinkController:
         error_message_elem = self.driver.find_by_resource_id("android:id/message")
         if error_message_elem.exists():
             error_text = error_message_elem.text
-            if error_text and "error" in error_text.lower():
-                logger.warning(f"Found error popup: '{error_text}', dismissing.")
-                ok_btn = self.driver.find_by_text("OK")
-                if ok_btn.exists():
-                    ok_btn.click()
-                    time.sleep(1)
-                return
+            if error_text:
+                error_lower = error_text.lower()
+                if "error" in error_lower or "wrong" in error_lower:
+                    logger.warning(f"Found error popup: '{error_text}', dismissing.")
+                    ok_btn = self.driver.find_by_text("OK")
+                    if ok_btn.exists():
+                        ok_btn.click()
+                        time.sleep(1)
+                    return
 
         incorrect_pin = self.driver.find_by_text("Incorrect PIN")
         if incorrect_pin.exists():
@@ -132,6 +134,95 @@ class HondaLinkController:
                 ok_btn.click()
                 time.sleep(0.5)
             raise AppNotReadyException("Incorrect PIN entered")
+
+    def _check_command_failure_dialog(self) -> tuple[bool, str | None]:
+        """
+        Checks for app-specific command failure dialogs.
+
+        Returns:
+            (is_failed, error_message) tuple
+        """
+        alert_title = self.driver.find_by_resource_id(
+            "com.honda.hondalink.connect:id/alertTitle"
+        )
+        if alert_title.exists() and "failed" in alert_title.text.lower():
+            error_message_elem = self.driver.find_by_resource_id("android:id/message")
+            error_message = (
+                error_message_elem.text
+                if error_message_elem.exists()
+                else "Unknown error"
+            )
+            logger.error(f"Command failed: {error_message}")
+
+            ok_btn = self.driver.find_by_resource_id("android:id/button1")
+            if not ok_btn.exists():
+                ok_btn = self.driver.find_by_text("OK")
+            if ok_btn.exists():
+                ok_btn.click()
+                time.sleep(0.5)
+
+            return True, error_message
+
+        return False, None
+
+    def _wait_for_command_completion(
+        self, command: CommandType, timeout: float = 30.0
+    ) -> tuple[bool, str]:
+        """
+        Waits for remote command to complete processing.
+
+        Returns:
+            (success, message) tuple
+        """
+        start_time = time.time()
+        poll_interval = 0.5
+        processing_seen = False
+
+        logger.info(f"Waiting for command {command} to complete (timeout: {timeout}s)")
+
+        while time.time() - start_time < timeout:
+            processing_message = self.driver.find_by_resource_id(
+                "com.honda.hondalink.connect:id/remote_command_progress_message"
+            )
+
+            if processing_message.exists():
+                processing_seen = True
+                logger.debug(
+                    f"Still processing: {processing_message.text} "
+                    f"({time.time() - start_time:.1f}s elapsed)"
+                )
+                time.sleep(poll_interval)
+                continue
+
+            if processing_seen:
+                logger.info("Processing UI disappeared, checking result")
+
+            is_failed, error_message = self._check_command_failure_dialog()
+            if is_failed:
+                return False, error_message or "Command failed"
+
+            if command == CommandType.START:
+                remote_start_status = self.get_remote_start_status()
+                if remote_start_status.is_active:
+                    logger.info("Remote start confirmed active")
+                    return True, "Remote start successful"
+
+            if self._handle_pin_entry():
+                logger.info("PIN entry required during processing")
+                time.sleep(poll_interval)
+                continue
+
+            self._handle_popups()
+
+            if not processing_seen and time.time() - start_time < 2.0:
+                time.sleep(0.2)
+                continue
+
+            logger.info("Processing completed, no failure detected")
+            return True, f"Command {command.value} executed successfully"
+
+        logger.warning(f"Command processing timeout after {timeout}s")
+        return False, f"Command timeout after {timeout} seconds"
 
     def _navigate_to_home(self):
         """Navigates to the main dashboard screen."""
@@ -369,21 +460,9 @@ class HondaLinkController:
         logger.info(f"Clicking command button: {btn_text}")
         btn.click()
 
-        logger.info("Waiting for PIN screen or result...")
-        start_time = time.time()
-        pin_entered = False
+        success, message = self._wait_for_command_completion(command, timeout=30.0)
+        if not success:
+            raise CommandFailedException(message)
 
-        while time.time() - start_time < 8:
-            if self._handle_pin_entry():
-                pin_entered = True
-                logger.info("PIN entry flow completed")
-                break
-
-            self._handle_popups()
-            time.sleep(0.2)
-
-        if pin_entered:
-            time.sleep(2)
-
-        logger.info(f"Command {command} executed")
+        logger.info(f"Command {command} executed: {message}")
         return True

@@ -119,9 +119,37 @@ if command == CommandType.START:
         btn = extend_btn  # Use Extend instead of Start
 ```
 
-**Resource IDs for Remote Start Status**:
-- Timer: `com.honda.hondalink.connect:id/text_success_timer` (format: "MM:SS")
-- Cabin Temp: `com.honda.hondalink.connect:id/remote_command_inside_temp` (format: "XX °C")
+### Remote Command Processing (30-Second Wait Logic)
+
+**Location**: `controller.py:_wait_for_command_completion()` (lines 165-217)  
+**Timeout**: 30 seconds (configurable)  
+**Poll Interval**: 500ms
+
+**What it detects**:
+1. **Processing UI**: Resource ID `com.honda.hondalink.connect:id/remote_command_progress_message`
+   - Text: "Sending command…" or "Contacting server…"
+   - Waits while processing UI is visible
+   
+2. **Failure Dialogs**: Via `_check_command_failure_dialog()` (lines 136-162)
+   - Title: `com.honda.hondalink.connect:id/alertTitle` containing "failed"
+   - Message: `android:id/message`
+   - OK button: `android:id/button1` or text "OK"
+   - Example: "Maximum start requests reached. Please reset by turning the car ON then OFF."
+
+3. **Success Indicators**:
+   - For START command: Checks if remote start is active using `get_remote_start_status()`
+   - Timer: `com.honda.hondalink.connect:id/text_success_timer` (format: "MM:SS")
+   - Cabin Temp: `com.honda.hondalink.connect:id/remote_command_inside_temp` (format: "XX °C")
+
+**Smart Timeout Logic**:
+- If processing UI never appears: Exits after 2 seconds (backward compatibility)
+- If processing UI appears then disappears: Checks for success/failure indicators
+- Full 30-second timeout if processing persists
+
+**Error Handling**:
+- Automatically dismisses failure dialogs
+- Returns `(success: bool, message: str)` tuple
+- Raises `CommandFailedException` on failure (triggers retry mechanism)
 
 ## CODE CONVENTIONS
 
