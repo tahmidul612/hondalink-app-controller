@@ -10,6 +10,7 @@ class UIElement(Protocol):
     def exists(self) -> bool: ...
     def wait(self, timeout: float = 10.0) -> bool: ...
     def set_text(self, text: str) -> None: ...
+    def bounds(self) -> tuple[int, int, int, int]: ...
 
 
 class AndroidDriver(ABC):
@@ -51,6 +52,22 @@ class AndroidDriver(ABC):
     @abstractmethod
     def press(self, key: str) -> None:
         """Press a hardware key (home, back, etc)."""
+        pass
+
+    @abstractmethod
+    def swipe(
+        self, fx: float, fy: float, tx: float, ty: float, duration: float = 0.5
+    ) -> None:
+        """
+        Swipe from (fx, fy) to (tx, ty).
+
+        Args:
+            fx: Starting x coordinate (0.0-1.0 for normalized, or pixel value)
+            fy: Starting y coordinate (0.0-1.0 for normalized, or pixel value)
+            tx: Ending x coordinate (0.0-1.0 for normalized, or pixel value)
+            ty: Ending y coordinate (0.0-1.0 for normalized, or pixel value)
+            duration: Duration of swipe in seconds
+        """
         pass
 
     @abstractmethod

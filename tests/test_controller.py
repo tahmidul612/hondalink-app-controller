@@ -173,3 +173,16 @@ def test_execute_remote_command_handles_pin_prompt(controller, mock_driver):
     assert start_btn.clicked
     assert pin_input.input_text == "1234"
     assert enter_btn.clicked
+
+
+def test_execute_remote_command_expands_collapsed_panel(controller, mock_driver):
+    mock_driver.connect()
+
+    remote_commands_text = mock_driver.register_element(
+        "text=Remote Commands", exists=True, bounds=(261, 1077, 475, 1110)
+    )
+    start_btn = mock_driver.register_element("text=Start", exists=True)
+
+    controller.execute_remote_command(CommandType.START)
+
+    assert start_btn.clicked

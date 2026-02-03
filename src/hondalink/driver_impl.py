@@ -1,4 +1,3 @@
-
 import uiautomator2 as u2
 
 from .driver import AndroidDriver, UIElement
@@ -23,6 +22,9 @@ class U2ElementWrapper:
 
     def set_text(self, text: str) -> None:
         self._element.set_text(text)
+
+    def bounds(self) -> tuple[int, int, int, int]:
+        return self._element.bounds()
 
 
 class UiautomatorDriver(AndroidDriver):
@@ -60,6 +62,12 @@ class UiautomatorDriver(AndroidDriver):
     def press(self, key: str) -> None:
         if self.d:
             self.d.press(key)
+
+    def swipe(
+        self, fx: float, fy: float, tx: float, ty: float, duration: float = 0.5
+    ) -> None:
+        if self.d:
+            self.d.swipe(fx, fy, tx, ty, duration=duration)
 
     def dump_hierarchy(self) -> str:
         if self.d:

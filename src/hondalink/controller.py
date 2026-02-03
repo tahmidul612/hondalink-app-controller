@@ -101,6 +101,39 @@ class HondaLinkController:
             # self.driver.press("back")
             pass
 
+    def _expand_remote_commands_panel(self) -> bool:
+        """
+        Expands the Remote Commands bottom drawer panel if collapsed.
+        Returns True if panel was successfully expanded or was already expanded.
+        """
+        if self.driver.find_by_text("Start").exists():
+            logger.debug("Remote Commands panel already expanded")
+            return True
+
+        remote_commands_text = self.driver.find_by_text("Remote Commands")
+        if not remote_commands_text.exists():
+            logger.warning("Remote Commands panel not found")
+            return False
+
+        left, top, right, bottom = remote_commands_text.bounds()
+        center_x = (left + right) // 2
+        start_y = (top + bottom) // 2
+        end_y = start_y - 200
+
+        logger.info(
+            f"Expanding Remote Commands panel by dragging from "
+            f"({center_x}, {start_y}) to ({center_x}, {end_y})"
+        )
+        self.driver.swipe(center_x, start_y, center_x, end_y, duration=0.2)
+        time.sleep(0.5)
+
+        if self.driver.find_by_text("Start").exists():
+            logger.info("Panel expanded successfully")
+            return True
+
+        logger.warning("Panel may still be collapsed after drag")
+        return False
+
     def get_status(self) -> VehicleStatus:
         self.ensure_app_open()
         self._navigate_to_home()
@@ -174,15 +207,9 @@ class HondaLinkController:
         self.ensure_app_open()
         self._handle_popups()
 
-        # Open Remote Commands if not visible
         if not self.driver.find_by_text("Start").exists():
-            remote_cmd_btn = self.driver.find_by_text("Remote Commands")
-            if remote_cmd_btn.exists():
-                remote_cmd_btn.click()
-                time.sleep(2)
-
-        if not self.driver.find_by_text("Start").exists():
-            raise CommandFailedException("Could not open Remote Commands menu")
+            if not self._expand_remote_commands_panel():
+                raise CommandFailedException("Could not expand Remote Commands panel")
 
         btn_text = {
             CommandType.START: "Start",

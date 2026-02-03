@@ -1,11 +1,16 @@
-
 from .driver import AndroidDriver, UIElement
 
 
 class MockElement:
-    def __init__(self, text: str = "", exists: bool = True):
+    def __init__(
+        self,
+        text: str = "",
+        exists: bool = True,
+        bounds: tuple[int, int, int, int] | None = None,
+    ):
         self._text = text
         self._exists = exists
+        self._bounds = bounds or (0, 0, 100, 100)
         self.clicked = False
         self.input_text = None
 
@@ -24,6 +29,9 @@ class MockElement:
 
     def set_text(self, text: str) -> None:
         self.input_text = text
+
+    def bounds(self) -> tuple[int, int, int, int]:
+        return self._bounds
 
 
 class MockDriver(AndroidDriver):
@@ -63,14 +71,24 @@ class MockDriver(AndroidDriver):
     def press(self, key: str) -> None:
         self.pressed_keys.append(key)
 
-    # Helper for tests
+    def swipe(
+        self, fx: float, fy: float, tx: float, ty: float, duration: float = 0.5
+    ) -> None:
+        pass
+
     def dump_hierarchy(self) -> str:
         return "<mock>hierarchy</mock>"
 
-    def register_element(self, selector: str, text: str = "", exists: bool = True) -> MockElement:
+    def register_element(
+        self,
+        selector: str,
+        text: str = "",
+        exists: bool = True,
+        bounds: tuple[int, int, int, int] | None = None,
+    ) -> MockElement:
         """
         Selector examples: 'text=Start', 'xpath=//button', 'id=com.honda:id/btn'
         """
-        elem = MockElement(text=text, exists=exists)
+        elem = MockElement(text=text, exists=exists, bounds=bounds)
         self.elements[selector] = elem
         return elem
