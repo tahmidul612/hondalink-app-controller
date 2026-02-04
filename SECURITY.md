@@ -2,6 +2,46 @@
 
 This document describes the security features implemented in the HondaLink Controller and how to configure them properly.
 
+## Supported Versions
+
+We release security updates for the following versions:
+
+| Version | Supported          | Notes |
+| ------- | ------------------ | ----- |
+| 0.1.x   | :white_check_mark: | Current release, actively maintained |
+| < 0.1   | :x:                | Pre-release versions not supported |
+
+**Recommendation**: Always use the latest release for the most up-to-date security features.
+
+## Reporting a Vulnerability
+
+**Please do NOT report security vulnerabilities through public GitHub issues.**
+
+If you discover a security vulnerability, please report it privately:
+
+1. **Email**: [tahmidul612@gmail.com](mailto:tahmidul612@gmail.com)
+2. **Subject**: Include "SECURITY" in the subject line
+3. **Details**: Provide as much information as possible:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Suggested fix (if any)
+
+### What to Expect
+
+- **Initial Response**: Within 48 hours
+- **Status Update**: Within 7 days
+- **Fix Timeline**: Critical issues patched within 14 days
+- **Disclosure**: Coordinated disclosure after fix is released
+
+### Responsible Disclosure
+
+We follow responsible disclosure practices:
+- We'll acknowledge your report within 48 hours
+- We'll work with you to understand and fix the issue
+- We'll credit you in the security advisory (unless you prefer to remain anonymous)
+- We'll notify users of security updates
+
 ## Security Layers
 
 The HondaLink Controller implements multiple security layers to prevent unauthorized access:
