@@ -145,13 +145,23 @@ class HondaLinkController:
         alert_title = self.driver.find_by_resource_id(
             "com.honda.hondalink.connect:id/alertTitle"
         )
-        if alert_title.exists() and "failed" in alert_title.text.lower():
+        if alert_title.exists():
+            try:
+                title_text = alert_title.text
+                if "failed" not in title_text.lower():
+                    return False, None
+            except Exception:
+                return False, None
+
             error_message_elem = self.driver.find_by_resource_id("android:id/message")
-            error_message = (
-                error_message_elem.text
-                if error_message_elem.exists()
-                else "Unknown error"
-            )
+            try:
+                error_message = (
+                    error_message_elem.text
+                    if error_message_elem.exists()
+                    else "Unknown error"
+                )
+            except Exception:
+                error_message = "Unknown error"
             logger.error(f"Command failed: {error_message}")
 
             ok_btn = self.driver.find_by_resource_id("android:id/button1")
@@ -187,10 +197,17 @@ class HondaLinkController:
 
             if processing_message.exists():
                 processing_seen = True
-                logger.debug(
-                    f"Still processing: {processing_message.text} "
-                    f"({time.time() - start_time:.1f}s elapsed)"
-                )
+                try:
+                    message_text = processing_message.text
+                    logger.debug(
+                        f"Still processing: {message_text} "
+                        f"({time.time() - start_time:.1f}s elapsed)"
+                    )
+                except Exception:
+                    logger.debug(
+                        f"Processing UI disappeared during text access "
+                        f"({time.time() - start_time:.1f}s elapsed)"
+                    )
                 time.sleep(poll_interval)
                 continue
 
@@ -396,12 +413,19 @@ class HondaLinkController:
             is_active = bool(timer_exists and temp_exists)
 
             if is_active:
-                remaining_time = timer_elem.text if timer_elem.text else "Unknown"
-                cabin_temperature = temp_elem.text if temp_elem.text else "Unknown"
-                logger.info(
-                    f"Remote start ACTIVE: {remaining_time} remaining, "
-                    f"cabin temp: {cabin_temperature}"
-                )
+                try:
+                    remaining_time = timer_elem.text if timer_elem.text else "Unknown"
+                    cabin_temperature = temp_elem.text if temp_elem.text else "Unknown"
+                    logger.info(
+                        f"Remote start ACTIVE: {remaining_time} remaining, "
+                        f"cabin temp: {cabin_temperature}"
+                    )
+                except Exception:
+                    remaining_time = "Unknown"
+                    cabin_temperature = "Unknown"
+                    logger.warning(
+                        "Remote start elements disappeared during text access"
+                    )
             else:
                 remaining_time = "Unknown"
                 cabin_temperature = "Unknown"
