@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  hondalink-controller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hondalink-controller
+    image: hondalink-controller:latest
+    
+    # Resource limits for optimization
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "8000:8000"
+    
+    # Environment variables (override with .env file)
+    environment:
+      # Android device settings
+      - ANDROID_DEVICE_IP=${ANDROID_DEVICE_IP:-}
+      - PIN_CODE=${PIN_CODE:-}
+      - HONDALINK_PACKAGE=${HONDALINK_PACKAGE:-com.honda.hondalink.connect}
+      - USE_MOCK_DRIVER=${USE_MOCK_DRIVER:-false}
+      
+      # Security settings
+      - REQUIRE_AUTHENTICATION=${REQUIRE_AUTHENTICATION:-true}
+      - API_KEYS=${API_KEYS:-}
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+      - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
+      - API_RATE_LIMIT=${API_RATE_LIMIT:-30}
+      - COMMAND_RATE_LIMIT=${COMMAND_RATE_LIMIT:-10}
+      - AUDIT_LOG_FILE=/app/logs/security_audit.jsonl
+      
+      # Optimization settings
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    
+    # Volume mounts
+    volumes:
+      # Persistent audit logs
+      - ./logs:/app/logs
+      
+      # ADB configuration (if exists)
+      - ${HOME}/.android:/home/hondalink/.android:ro
+    
+    # Network mode: host for ADB connectivity
+    # Use 'bridge' if using remote Android device via IP
+    network_mode: host
+    
+    # Device access for USB ADB
+    # Uncomment if using USB-connected Android device
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    
+    # Capabilities (minimal for security)
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # For binding to port 8000
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Read-only root filesystem (except volumes)
+    # Commented out as logs need write access
+    # read_only: true
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    
+    # Logging configuration (limit log size)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Separate network for isolation
+# Uncomment if not using host networking
+# networks:
+#   default:
+#     driver: bridge
+#     ipam:
+#       config:
+#         - subnet: 172.20.0.0/16
