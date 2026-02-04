@@ -22,6 +22,10 @@ class CommandFailedException(HondaLinkException):
     pass
 
 
+class PermanentFailureException(HondaLinkException):
+    pass
+
+
 class HondaLinkController:
     def __init__(self, driver: AndroidDriver):
         self.driver = driver
@@ -175,6 +179,19 @@ class HondaLinkController:
 
         return False, None
 
+    @staticmethod
+    def _is_permanent_failure(error_message: str) -> bool:
+        permanent_patterns = [
+            "maximum start requests reached",
+            "maximum requests reached",
+            "please reset by turning",
+            "vehicle not connected",
+            "subscription expired",
+            "service not available",
+        ]
+        error_lower = error_message.lower()
+        return any(pattern in error_lower for pattern in permanent_patterns)
+
     def _wait_for_command_completion(
         self, command: CommandType, timeout: float = 30.0
     ) -> tuple[bool, str]:
@@ -216,7 +233,13 @@ class HondaLinkController:
 
             is_failed, error_message = self._check_command_failure_dialog()
             if is_failed:
-                return False, error_message or "Command failed"
+                error_msg = error_message or "Command failed"
+                if self._is_permanent_failure(error_msg):
+                    logger.error(
+                        f"Permanent failure detected, will not retry: {error_msg}"
+                    )
+                    raise PermanentFailureException(error_msg)
+                return False, error_msg
 
             if command == CommandType.START:
                 remote_start_status = self.get_remote_start_status()
