@@ -6,6 +6,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128+-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![uv](https://img.shields.io/badge/managed_by-uv-blueviolet.svg?style=for-the-badge)](https://github.com/astral-sh/uv)
 
@@ -20,6 +21,8 @@
 - [Security](#-security-features)
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
+  - [Native Installation](#native-installation)
+  - [Docker Deployment](#-docker-deployment-recommended)
 - [Configuration](#-configuration)
 - [Running the Server](#-running-the-server)
 - [API Usage](#-api-usage)
@@ -40,6 +43,7 @@ HondaLink Controller is a FastAPI-based service that interfaces with the HondaLi
 - **🔄 Automatic Retry Logic**: Built-in retry mechanism for flaky UI automation
 - **🧪 Mock Driver**: Full test mode without requiring a physical Android device
 - **⚡ FastAPI Performance**: Asynchronous architecture with OpenAPI/Swagger documentation
+- **🐳 Docker Ready**: Production-ready containerized deployment with security hardening
 - **🐛 Debug Tools**: UI hierarchy dump endpoint for troubleshooting element selectors
 
 ## 🔒 Security Features
@@ -81,7 +85,50 @@ This service includes comprehensive security hardening to prevent unauthorized a
 
 ## 🚀 Installation
 
-### Quick Install
+Choose your preferred deployment method:
+
+### 🐳 Docker Deployment (Recommended)
+
+Docker provides the easiest and most reliable deployment with all dependencies pre-configured.
+
+1. **Prerequisites**: Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+
+2. **Clone the repository**:
+   ```bash
+   git clone https://github.com/tahmidul612/hondalink-app-controller.git
+   cd hondalink-app-controller
+   ```
+
+3. **Configure environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your settings (Android device IP, PIN, API keys)
+   ```
+
+4. **Start with Docker Compose**:
+   ```bash
+   docker compose up -d
+   ```
+
+5. **Verify deployment**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+**Using Makefile** (recommended for easier management):
+```bash
+make build    # Build Docker image
+make up       # Start services
+make logs     # View logs
+make health   # Check service status
+make down     # Stop services
+```
+
+📖 **For detailed Docker configuration, networking modes, and troubleshooting**, see [Docker Deployment Guide](docs/DOCKER.md)
+
+### Native Installation
+
+For development or if you prefer running without Docker:
 
 1. **Clone the repository**:
    ```bash
@@ -103,14 +150,14 @@ This service includes comprehensive security hardening to prevent unauthorized a
    uv sync
    ```
 
-### Alternative: pip Installation
+#### Alternative: pip Installation
 
 If you prefer using pip:
 ```bash
 pip install -e .
 ```
 
-### Verify Installation
+#### Verify Installation
 
 Check that ADB can see your device:
 ```bash
@@ -175,11 +222,45 @@ AUDIT_LOG_FILE=logs/security_audit.jsonl
 | `COMMAND_RATE_LIMIT` | Max vehicle commands per minute | `10` | No |
 | `AUDIT_LOG_FILE` | Path to security audit log | `logs/security_audit.jsonl` | No |
 
-**For complete security configuration including HTTPS/TLS, see [SECURITY.md](SECURITY.md)**
+**For complete security configuration including HTTPS/TLS, see [Security Guide](docs/SECURITY.md)**
 
 ## 🏃 Running the Server
 
-### Development Mode (HTTP)
+### 🐳 Docker (Recommended)
+
+The easiest way to run the service with all dependencies configured:
+
+```bash
+# Start service in background
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Check status
+docker compose ps
+
+# Stop service
+docker compose down
+```
+
+**Using Makefile commands**:
+```bash
+make up        # Start service
+make logs      # View logs
+make health    # Check service status
+make restart   # Restart service
+make down      # Stop service
+```
+
+The API will be available at:
+- **API**: http://localhost:8000
+- **Interactive docs**: http://localhost:8000/docs
+- **Health check**: http://localhost:8000/health
+
+📖 **For Docker configuration, networking, and production deployment**, see [Docker Deployment Guide](docs/DOCKER.md)
+
+### Native Development Mode (HTTP)
 
 Start the server with hot reload for development:
 
@@ -192,7 +273,7 @@ The API will be available at:
 - **Interactive docs**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-### Production Mode (HTTPS - Recommended)
+### Native Production Mode (HTTPS)
 
 1. **Generate SSL certificate** (self-signed for testing):
    ```bash
@@ -216,10 +297,6 @@ The API will be available at:
 ```bash
 certbot certonly --standalone -d yourdomain.com
 ```
-
-### Docker Deployment (Coming Soon)
-
-Docker support is planned for easier deployment.
 
 ## 📡 API Usage
 
@@ -565,6 +642,29 @@ grep -E "blocked|failed|exceeded" logs/security_audit.jsonl | jq .
 
 ## 🐛 Troubleshooting
 
+### Docker Issues
+
+**Container won't start**
+- Check Docker logs: `docker compose logs`
+- Verify .env configuration: `docker compose config`
+- Ensure ports aren't already in use: `docker ps`
+- Check Docker daemon is running: `docker info`
+
+**ADB connection from container**
+- For USB devices: Ensure `devices:` section is uncommented in docker-compose.yml
+- For network devices: Use `network_mode: host` or specify device IP
+- Test from container: `docker compose exec hondalink-controller adb devices`
+- Connect to device: `docker compose exec hondalink-controller adb connect <IP>:5555`
+
+**Permission issues with logs**
+- Ensure logs directory exists: `mkdir -p logs`
+- Set permissions: `chmod 777 logs` (or `chown 1000:1000 logs`)
+
+**High memory usage**
+- Reduce resource limits in docker-compose.yml
+- Check `docker stats hondalink-controller`
+- See [Docker Guide](docs/DOCKER.md) for optimization tips
+
 ### Authentication Errors
 
 **"Missing API key"**
@@ -622,8 +722,13 @@ grep -E "blocked|failed|exceeded" logs/security_audit.jsonl | jq .
 
 **Running Tests**
 ```bash
-# Run all tests with coverage
+# Native (with uv)
 uv run pytest
+
+# Docker
+make test
+# or
+docker compose exec hondalink-controller pytest
 
 # Run specific test file
 uv run pytest tests/test_controller.py
@@ -637,17 +742,21 @@ USE_MOCK_DRIVER=True uv run pytest
 
 **Linting & Formatting**
 ```bash
-# Check code style
+# Native (with uv)
 uv run ruff check src/ tests/
-
-# Auto-format code
 uv run ruff format src/ tests/
+
+# Docker
+make lint
+make format
 ```
 
 ### Getting Help
 
 - **Issues**: [GitHub Issues](https://github.com/tahmidul612/hondalink-app-controller/issues)
-- **Security**: See [SECURITY.md](SECURITY.md) for reporting security vulnerabilities
+- **Security**: See [Security Guide](docs/SECURITY.md) for reporting security vulnerabilities
+- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
+- **Docker**: See [Docker Guide](docs/DOCKER.md) for container deployment
 - **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
 
 ## 🤝 Contributing

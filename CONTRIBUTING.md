@@ -64,6 +64,56 @@ Before you begin, ensure you have:
 
 ## Development Setup
 
+You can develop using either native Python or Docker. Choose the method that works best for you.
+
+### Method 1: Docker Development (Recommended)
+
+Docker provides a consistent environment and is the easiest way to get started.
+
+**Prerequisites**: [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+
+**Setup:**
+```bash
+# Build the image
+make build
+
+# Start in development mode
+docker compose up
+
+# In another terminal, run tests
+make test
+
+# Format code
+make format
+
+# Check code style
+make lint
+```
+
+**Benefits:**
+- Consistent environment across all platforms
+- No need to install Python or dependencies
+- Matches production deployment
+- All dependencies pre-configured
+
+### Method 2: Native Python Development
+
+For developers who prefer working directly with Python.
+
+**Prerequisites**: Python 3.11+, uv, ADB
+
+**Setup:**
+```bash
+# Install dependencies
+uv sync
+
+# Set up environment
+cp .env.example .env
+
+# Run tests
+uv run pytest
+```
+
 ### Environment Configuration
 
 For development, use these `.env` settings:
@@ -83,6 +133,7 @@ Install recommended extensions:
 - Python
 - Pylance
 - Ruff
+- Docker (if using Docker development)
 
 Settings (`.vscode/settings.json`):
 ```json
@@ -181,14 +232,33 @@ git checkout -b feature/your-feature-name
 
 1. **Write tests first** (TDD approach recommended)
 2. **Implement the feature**
-3. **Run tests**: `uv run pytest`
-4. **Run linter**: `uv run ruff check src/ tests/`
-5. **Format code**: `uv run ruff format src/ tests/`
+3. **Run tests**: `make test` (Docker) or `uv run pytest` (Native)
+4. **Run linter**: `make lint` (Docker) or `uv run ruff check src/ tests/` (Native)
+5. **Format code**: `make format` (Docker) or `uv run ruff format src/ tests/` (Native)
 6. **Test manually** if applicable
 7. **Update documentation** if needed
 
 ### Testing Your Changes
 
+**Using Docker (Recommended):**
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+docker compose exec hondalink-controller pytest --cov=src --cov-report=html
+
+# Run specific test file
+docker compose exec hondalink-controller pytest tests/test_controller.py
+
+# Check code style
+make lint
+
+# Format code
+make format
+```
+
+**Using Native Python:**
 ```bash
 # Run all tests
 uv run pytest
@@ -211,8 +281,23 @@ USE_MOCK_DRIVER=True uv run pytest
 
 ### Manual Testing
 
-For features that interact with real devices:
+**Using Docker:**
+```bash
+# Start service
+make up
 
+# View logs
+make logs
+
+# Test endpoints
+curl http://localhost:8000/health
+curl -X POST -H "X-API-Key: your-key" http://localhost:8000/action/lock
+
+# Open shell in container
+make shell
+```
+
+**Using Native Python:**
 ```bash
 # Start server in development mode
 uv run uvicorn src.hondalink.main:app --reload

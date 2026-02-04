@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Docker container support with Docker Compose
+- Multi-stage Dockerfile for optimized image size (~200MB)
+- Makefile with convenient commands for Docker management
+- Comprehensive Docker deployment guide
+- Security-hardened container (non-root user, dropped capabilities)
+- Resource limits and health checks in Docker Compose
+- Support for both host and bridge networking modes
+- USB device passthrough for ADB connections
+
+### Changed
+- Documentation reorganized into `docs/` folder for better navigation
+- README updated with Docker deployment as recommended method
+- CONTRIBUTING.md updated with Docker development workflow
+
 ### Planned
-- Docker container support for easier deployment
 - WebSocket support for real-time vehicle status updates
 - JWT token-based authentication (in addition to API keys)
 - Multiple vehicle support
