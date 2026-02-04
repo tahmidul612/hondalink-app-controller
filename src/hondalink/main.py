@@ -7,7 +7,11 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from .config import settings
-from .controller import HondaLinkController, HondaLinkException
+from .controller import (
+    HondaLinkController,
+    HondaLinkException,
+    PermanentFailureException,
+)
 from .driver_impl import UiautomatorDriver
 from .driver_mock import MockDriver
 from .models import CommandType, RemoteStartStatus, VehicleStatus
@@ -218,6 +222,14 @@ async def execute_command(
             return ActionResponse(
                 status="success", message=f"Command {command} executed successfully"
             )
+        except PermanentFailureException as e:
+            logger.error(f"Permanent failure executing command {command}: {e}")
+            audit_logger.log_event(
+                event_type="vehicle_command_permanent_failure",
+                client_ip=client_ip,
+                details={"command": command.value, "error": str(e)},
+            )
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except HondaLinkException as e:
             logger.exception(f"Error executing command {command}")
             audit_logger.log_event(
